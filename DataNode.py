@@ -11,6 +11,10 @@ Ports = ['6001','6002','6003']
 Sockets = []
 Threads = []
 MaxNumberBytes = 10000
+MaxBytesCopying = 50000
+ServerForMasterPort = '1212'
+CopyingPort = '1111'
+
 
 context = zmq.Context() 
 publisher = context.socket(zmq.PUB)
@@ -80,13 +84,76 @@ def Transfer(ID):
                         Sockets[ID].send(b'done')
                         publisher.send_string('Downloaded')
                         publisher.send_string(Ports[ID])
-                        
+
+def StartCopying(Info,FileName):
+        CopyingSocket  = context.socket(zmq.REQ)
+        CopyingSocket.bind("tcp://*:%s" % CopyingPort)
+
+        for i in range(0,len(Info),2):          #NOTE: User will connect to more than one Data Node in case of download
+                CopyingSocket.connect ("tcp://%s:%s" %(Info[i],Info[i+1]))
+        
+        NuberOfMachines = len(Info) / 2
+        for i in range(0,NuberOfMachines):
+                CopyingSocket.send(b'upload')
+                CopyingSocket.recv()
+        for i in range(0,NuberOfMachines):
+                CopyingSocket.send_string(FileName)
+                CopyingSocket.recv()
+
+        data = b''
+        n = 0
+        with open(FileName, "rb") as f:
+                byte = f.read(1)
+                n+=1
+                data+=byte
+                while byte != b"":
+                        byte = f.read(1)
+                        data+=byte
+                        n+=1
+                        if(n == MaxBytesCopying):
+                                n = 0
+                                for i in range(0,NuberOfMachines):
+                                        CopyingSocket.send(data)
+                                        respond = CopyingSocket.recv()
+                                        if(respond != b'ok'):
+                                                print('Error occured, Transfer Failed.')
+                                                break
+                                data = b''
+                                
+        if(n > 0):
+                n = 0
+                for i in range(0,NuberOfMachines):
+                        CopyingSocket.send(data)
+                        respond = CopyingSocket.recv()
+                        if(respond != b'ok'):
+                                print('Error occured, Transfer Failed.')
+                data = b''
+
+        CopyingSocket.send(b'done')
+        CopyingSocket.recv()
+
+        print('Done Copying')
+        
+
+def Replicating():
+        Server = context.socket(zmq.REP)
+        Server.bind("tcp://*:%s" % ServerForMasterPort)
+        while True:
+                Info = Server.recv_string()
+                Server.send_string('')
+
+                StartCopying(Info,Server.recv_string)
+                Server.send_string('done')
+        
+
+
 
 
 for i in range(0, 3):
 	Threads.append(threading.Thread(name = str(i),target=Transfer, args=(i,) ))
 	Threads[i].start()
 print('Server started')
+ReplicatingThread = threading.Thread(target = Replicating)
 #Main Thread.
 while True:
 	publisher.send_string('Alive')

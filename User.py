@@ -10,6 +10,8 @@ context = zmq.Context()
 DataNodeSocket = context.socket(zmq.REQ)
 NumberOfConnectedServers = 0
 MaxNumberBytes = 10000
+MasterSocket = context.socket(zmq.REQ)
+MasterSocket.connect ("tcp://%s:%s" % (MasterIP,MasterPort) )
 #----------------------------
 
 def MakeConnectionWithDataNodes():
@@ -118,8 +120,6 @@ def Download(NumberOfConnectedServers):
 
 
 #Main........................................................
-MasterSocket = context.socket(zmq.REQ)
-MasterSocket.connect ("tcp://%s:%s" % (MasterIP,MasterPort) )
 
 #Intro
 print('Welcome..')
