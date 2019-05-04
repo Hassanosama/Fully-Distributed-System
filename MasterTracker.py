@@ -169,17 +169,16 @@ def ManageRuplicating():
             StartCopying(SourceNode,ChosenNodes,VideoName)
             DataNodeAsSource[SourceNode] = 'no'
 
-#Main..........................................................................
+#..........................................................................Main..........................................................................
+RecordsFile = open('Records.txt','a')   #Load records.
 for record in RecordsFile:
     record = str(record)
     record = record.replace('\n','')
     if(len(record) > 0):
         Instance.append(record)
-        name,dummy = record.split(',')
+        name,dummy = record.split('|')
         VideoNames.add(name)
 RecordsFile.close()
-
-RecordsFile = open('Records.txt','a')   #Load records.
 
 
 for i in range(0,NumberOfThreads):  #Running a thread for every connected data node.

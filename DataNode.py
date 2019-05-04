@@ -87,16 +87,15 @@ def Transfer(ID):
 
 def StartCopying(Info,FileName):
         CopyingSocket  = context.socket(zmq.REQ)
-        CopyingSocket.bind("tcp://*:%s" % CopyingPort)
 
         for i in range(0,len(Info),2):          #NOTE: User will connect to more than one Data Node in case of download
                 CopyingSocket.connect ("tcp://%s:%s" %(Info[i],Info[i+1]))
         
-        NuberOfMachines = len(Info) / 2
-        for i in range(0,NuberOfMachines):
+        NumberOfMachines = len(Info) / 2
+        for i in range(0,NumberOfMachines):
                 CopyingSocket.send(b'upload')
                 CopyingSocket.recv()
-        for i in range(0,NuberOfMachines):
+        for i in range(0,NumberOfMachines):
                 CopyingSocket.send_string(FileName)
                 CopyingSocket.recv()
 
@@ -112,7 +111,7 @@ def StartCopying(Info,FileName):
                         n+=1
                         if(n == MaxBytesCopying):
                                 n = 0
-                                for i in range(0,NuberOfMachines):
+                                for i in range(0,NumberOfMachines):
                                         CopyingSocket.send(data)
                                         respond = CopyingSocket.recv()
                                         if(respond != b'ok'):
@@ -122,7 +121,7 @@ def StartCopying(Info,FileName):
                                 
         if(n > 0):
                 n = 0
-                for i in range(0,NuberOfMachines):
+                for i in range(0,NumberOfMachines):
                         CopyingSocket.send(data)
                         respond = CopyingSocket.recv()
                         if(respond != b'ok'):
@@ -142,18 +141,17 @@ def Replicating():
                 Info = Server.recv_string()
                 Server.send_string('')
 
-                StartCopying(Info,Server.recv_string)
+                StartCopying(Info,Server.recv_string())
                 Server.send_string('done')
         
 
-
-
-
+#---------------------------------------Main---------------------------------------
 for i in range(0, 3):
 	Threads.append(threading.Thread(name = str(i),target=Transfer, args=(i,) ))
 	Threads[i].start()
 print('Server started')
 ReplicatingThread = threading.Thread(target = Replicating)
+ReplicatingThread.start()
 #Main Thread.
 while True:
 	publisher.send_string('Alive')

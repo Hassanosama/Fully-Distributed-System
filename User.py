@@ -92,7 +92,7 @@ def Download(NumberOfConnectedServers):
             if(data != b'done'):
                 delivered+=len(data)
                 per = int(delivered/int(FileSize)*100)
-                print('Uploading.. [%d%%]\r'%per, end="")
+                print('Downloading.. [%d%%]\r'%per, end="")
                 AllData[i].append(data)
                 
             else:
@@ -103,7 +103,7 @@ def Download(NumberOfConnectedServers):
                 
                 
         if(NumberOfConnectedServers == completed):
-            completed = 0  # Now completed variable represents the size of the constructed file.
+            completed = 0  # Now completed variable will represent the size of the constructed file.
             print('File Downloaded successfully from the servers.')
             print('Please wait while constructing the file..')
             file = open(FileName,'wb')
@@ -112,7 +112,7 @@ def Download(NumberOfConnectedServers):
                     file.write(b)
                     completed+=1
                     per = int(completed//int(FileSize)*100)
-                    print('Downloading.. [%d%%]\r'%per, end="")
+                    print('Constructing.. [%d%%]\r'%per, end="")
 
             file.close()
             break
@@ -139,5 +139,3 @@ else:
     Download(NumberOfConnectedServers)
 
 os.system('pause')
-
-    
