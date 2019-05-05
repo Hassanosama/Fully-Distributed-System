@@ -74,10 +74,12 @@ if __name__ == '__main__':
     q1 = Queue()
     q2 = Queue()
     q3 = Queue()
-    slaveip1 = "192.168.137.193"
-    slaveip2 = ""
+    slaveip1 = "192.168.43.37"
+    slaveip2 = "192.168.43.172"
     slaveip3 = ""
     client_Process = Process(target=client_signup, args=(q1, q2, q3,))
     slave1_process = Process(target=inform_slave, args=(slaveip1, 1, q1,))
+    slave2_process = Process(target=inform_slave, args=(slaveip2, 2, q2,))
     client_Process.start()
     slave1_process.start()
+    slave2_process.start()

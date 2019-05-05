@@ -11,7 +11,7 @@ FileName = ''
 context = zmq.Context()
 DataNodeSocket = context.socket(zmq.REQ)
 NumberOfConnectedServers = 0
-MaxNumberBytes = 10000
+MaxNumberBytes = 1000000
 MasterSocket = context.socket(zmq.REQ)
 MasterSocket.connect ("tcp://%s:%s" % (MasterIP,MasterPort) )
 #----------------------------
@@ -139,7 +139,7 @@ def MakeConnectionWithDataNodes():
     return x
 
 #------------------------------------------------------------------
-def Download(NumberOfConnectedServers):
+def Download(FileName, NumberOfConnectedServers):
     AllData = []
     Done = []
     for i in range(0,NumberOfConnectedServers):
@@ -189,7 +189,7 @@ def Download(NumberOfConnectedServers):
                 for b in AllData[i]:
                     file.write(b)
                     completed+=1
-                    per = int(completed//int(FileSize)*100)
+                    per = int(completed/int(FileSize)*100)
                     print('Constructing.. [%d%%]\r'%per, end="")
 
             file.close()
@@ -197,7 +197,7 @@ def Download(NumberOfConnectedServers):
     print('Your File is ready now.')
 
 #------------------------------------------------------------------
-def Upload():
+def Upload(FileName):
     DataNodeSocket.send(b'upload')
     DataNodeSocket.recv()
     DataNodeSocket.send_string(FileName)
@@ -207,17 +207,17 @@ def Upload():
     delivered = 0
     FileSize = os.stat(FileName).st_size
     with open(FileName, "rb") as f:
-        byte = f.read(1)
-        n+=1
+        byte = f.read(10)
+        n+=10
         data+=byte
         while byte != b"":
-            byte = f.read(1)
+            byte = f.read(10)
             data+=byte
-            n+=1
-            delivered+=1
+            n+=10
+            delivered+=10
             per = int(delivered/int(FileSize)*100)
             print('Uploading.. [%d%%]\r'%per, end="")
-            if(n == MaxNumberBytes):
+            if(n >= MaxNumberBytes):
                 n = 0
                 DataNodeSocket.send(data)
                 data = b''
@@ -250,11 +250,13 @@ def LoggedIn():
     if Operation == '1':
         MasterSocket.send_string('Upload')          #Make an Upload request.
         NumberOfConnectedServers = MakeConnectionWithDataNodes()
-        Upload()
+        Upload(FileName)
     else:
         MasterSocket.send_string('Download')          #Make a Download request.
+        MasterSocket.recv_string()
+        MasterSocket.send_string(FileName)
         NumberOfConnectedServers = MakeConnectionWithDataNodes()
-        Download(NumberOfConnectedServers)
+        Download(FileName,NumberOfConnectedServers)
 
     os.system('pause')
     

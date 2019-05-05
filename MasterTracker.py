@@ -4,15 +4,17 @@ import sys
 import threading
 import queue
 import mysql.connector
+from multiprocessing import Process
 
 print('Establishing Master Tracker,Please Wait..')
+print('--------------------------------------------------------------------')
 
 #Initializing Variables.
-RecordsFile = open('Records.txt','r')   #Load records.
+#RecordsFile = open('Records.txt','r')   #Load records.
 LookUpTable = {}
 VideoNames = []
 Instance = []
-MinumumNumberOfCopies = 1
+MinumumNumberOfCopies = 2
 q = queue.Queue()
 DataNodeAsSource = ['no','no','no']
 State = ['offline', 'offline', 'offline']   #State of the Data Nodes, Intilally all Machines are offline.
@@ -22,10 +24,10 @@ context = zmq.Context()
 Threads = []
 subscribers = []  #notice that number if subscriber ports = number of threads.
 msg = []    #notice that number if messages = number of threads.
-Ports = ['6000','7000'] #Representitive Ports of the Data Nodes.
+Ports = ['6000','7000','8000'] #Representitive Ports of the Data Nodes.
 TransferPorts = {'6001':'free' , '6002':'free' , '6003':'free' , '7001':'free' , '7002':'free' , '7003':'free'}
 DataNodePorts = [['6001','6002','6003'],['7001','7002','7003']]
-IP = ['192.168.137.169','192.168.137.169']  #IP's of the Data Nodes
+IP = ['192.168.43.138','192.168.43.37','192.168.43.172']  #IP's of the Data Nodes
 MasterPort = '5555'     # Master Port is the port which the users connect with.
 DataNodeAsServerPort = '1212'
 
@@ -48,6 +50,7 @@ except:
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def Connect(ID):
     msg[ID] = subscribers[ID].recv_string()
+    print('M3aya mn node ' + str(ID))
     if(msg[ID] == 'Alive'):
         print('Connected to Data Node number %s' %threading.currentThread().getName())
         LastTime[ID] = time.time()
@@ -69,15 +72,15 @@ def Connect(ID):
                 VideoNames.add(FileName)
                 '''
                 #Insert that file record to the records table.
-                mycursor.execute("INSERT INTO records (filename,datanode_id,filepath) VALUES(%s,%s,%s);",(FileName,ID,FilePath))
+                mycursor.execute("INSERT INTO records (filename,datanode_id,filepath) VALUES(%s,%s,%s);",(FileName,ID,FilePath,))
                 mydb.commit()
 
                 #Update the lookup table.
-                mycursor.execute("INSERT INTO look_up (user_id,filename,datanode_id,filepath,dataNode_state) VALUES(%s,%s,%s,%s,%s);",(1,FileName,ID,FilePath,State[ID]))            
+                mycursor.execute("INSERT INTO look_up (user_id,filename,datanode_id,filepath,dataNode_state) VALUES(%s,%s,%s,%s,%s);",(1,FileName,ID,FilePath,State[ID],))            
                 mydb.commit()
 
                 VideoNames.append(FileName)
-                if(MinumumNumberOfCopies > 1):
+                if(CountCopies(FileName) < MinumumNumberOfCopies):
                     q.put(FileName)
 
             else:
@@ -95,6 +98,15 @@ def GetFreePort(idx):
             return p,IP[idx]
     return 'none','none'
 #----------------------------------------------------------------------------------------------
+
+def GetNodes(name):
+    mycursor.execute("SELECT datanode_id FROM records WHERE filename = %s",(name,))
+    nodes = mycursor.fetchall()
+    ret = []
+    for node in nodes:
+        ret.append(int(node[0]))
+    return ret
+
 def ClientsHandler():
     while True:
         request = Server.recv_string() #Waiting for request from any client.
@@ -116,10 +128,16 @@ def ClientsHandler():
             Server.send_string(PortIP+' '+FreePort)
             TransferPorts[FreePort] = 'busy'
         else:
+            Server.send_string('')
+            FileName = Server.recv_string()
+            List = GetNodes(FileName)       #Get The nodes indecies which containing that file.
             Info = ''
             while len(Info) == 0:
-                for i in range(0,len(Ports)):
-                    FreePort,PortIP = GetFreePort(i)
+                FreePort = 'none'
+                PortIP = 'none'
+                for i in range(0,NumberOfThreads):
+                    if(List.__contains__(i)):
+                        FreePort,PortIP = GetFreePort(i)
                     if(FreePort != 'none'):
                         Info += ' '
                         Info += PortIP
@@ -130,7 +148,7 @@ def ClientsHandler():
             Server.send_string(Info)
 #----------------------------------------------------------------------------------------------
 def GetSourceNode(name):
-    mycursor.execute("SELECT datanode_id , filepath FROM records WHERE filename = %s",(name))
+    mycursor.execute("SELECT datanode_id , filepath FROM records WHERE filename = %s",(name,))
     sources = mycursor.fetchall()
     #We can get more than one source, so we should iterate to find an available one.
     while True:
@@ -148,7 +166,7 @@ def GetSourceNode(name):
     '''
 def GetChosenNodes(name):
     Info = ''
-    mycursor.execute("SELECT datanode_id FROM records WHERE filename = %s",(name))
+    mycursor.execute("SELECT datanode_id FROM records WHERE filename = %s",(name,))
     sources = mycursor.fetchall()
     counter = len(sources)  #Number of copies till now.
 
@@ -157,12 +175,12 @@ def GetChosenNodes(name):
 
         if(counter == MinumumNumberOfCopies):   #Check if the number of copies of the wanted fill reached the minimum wanted number or not.
             break
-        if State[DataNodeIdx] == 'online' and not sources.__contains__(DataNodeIdx):
+        if State[DataNodeIdx] == 'online' and not sources.__contains__((DataNodeIdx,)):
             FreePort = 'none'
             while FreePort == 'none':   #Stalling till get a free port from that data node.
                 FreePort,PortIP = GetFreePort(DataNodeIdx)
             TransferPorts[FreePort] = 'busy'
-            cnounter+=1     #Increase the number of copies.
+            counter+=1     #Increase the number of copies.
             Info += ' '
             Info += PortIP
             Info += ' '
@@ -201,12 +219,13 @@ def StartCopying(SourceNode,ChosenNodes,FilePath):
 
     ToDataNode.send_string(ChosenNodes)
     ToDataNode.recv_string()
-
+    print('FilePath:')
+    print(FilePath)
     ToDataNode.send_string(FilePath)        #Sending the file path to the data node to be able access it and send it to the other chosen data nodes.
     ToDataNode.recv_string()        #Note: the source node will not send a respond till it finished the copying porcess.
 
 def CountCopies(name):
-    mycursor.execute("SELECT COUNT(*) FROM records WHERE filename = %s",name)
+    mycursor.execute("SELECT COUNT(*) FROM records WHERE filename = %s",(name,))
     counter = mycursor.fetchone()
     return counter[0]       #Remeber, it comes from the database, so it's an array of arrays.
     '''
@@ -223,7 +242,7 @@ def ManageRuplicating():
     
     print('Searching for files that should be replicated..')
     for name in VideoNames:     # VideoNames is an array of arrays, beacuse it's a result of retrieve data from database.
-        if(CountCopies(name) < MinumumNumberOfCopies):
+        if(CountCopies(name[0]) < MinumumNumberOfCopies):
             q.put(name[0])
     if(q.empty()):
         print('There is no files need to be replicated in the system for now.')
@@ -233,52 +252,57 @@ def ManageRuplicating():
             print('Replicating status: A file Found: ' + VideoName)
             SourceNode = GetSourceNode(VideoName)       #SourceNode contains = [datanode_id , file path]
             ChosenNodes = GetChosenNodes(VideoName)
+            print('Chosen nodes data:')
+            print(ChosenNodes)
             StartCopying(SourceNode[0],ChosenNodes,SourceNode[1])
             DataNodeAsSource[SourceNode[0]] = 'no'
 
 #------------------------------Main------------------------------#
+if __name__ == '__main__':
+
+    #Get the records from the database to iterates on the video's name.
+    mycursor.execute("SELECT DISTINCT filename FROM records;")
+    VideoNames = mycursor.fetchall()
 
 
-
-#Get the records from the database to iterates on the video's name.
-mycursor.execute("SELECT DISTINCT filename FROM records;")
-VideoNames = mycursor.fetchall()
-
-
-'''
-RecordsFile = open('Records.txt','a')   #Load records.
-for record in RecordsFile:
-    record = str(record)
-    record = record.replace('\n','')
-    if(len(record) > 0):
-        Instance.append(record)
-        name,dummy = record.split('|')
-        VideoNames.add(name)
-RecordsFile.close()
-'''
+    '''
+    RecordsFile = open('Records.txt','a')   #Load records.
+    for record in RecordsFile:
+        record = str(record)
+        record = record.replace('\n','')
+        if(len(record) > 0):
+            Instance.append(record)
+            name,dummy = record.split('|')
+            VideoNames.add(name)
+    RecordsFile.close()
+    '''
 
 
-for i in range(0,NumberOfThreads):  #Running a thread for every connected data node.
-    Threads.append( threading.Thread(name = str(i),target=Connect, args=(i,) ) )
-    Threads[i].start()
-    time.sleep(0.5)
+    for i in range(0,NumberOfThreads):  #Running a thread for every connected data node.
+        Threads.append(threading.Thread(name = str(i),target=Connect, args=(i,) ) )
+        Threads[i].start()
+        time.sleep(0.5)
 
-ClientThread = threading.Thread(target=ClientsHandler)  #Creating a thread to deal with the incoming clients.
-ClientThread.start()
+    ClientThread = threading.Thread(name = 'Client Thread',target=ClientsHandler)  #Creating a thread to deal with the incoming clients.
+    ClientThread.start()
 
-print('Master Tracker Stablished successfully.')
+    print('Master Tracker Stablished successfully.')
 
-time.sleep(1)
-for i in range(0,3):
-    if(State[i] == 'offline'):
-        print('Data Node number %d is offline' %i)
+    time.sleep(1)
+    for i in range(0,NumberOfThreads):
+        if(State[i] == 'offline'):
+            print('Data Node number %d is offline' %i)
 
-ReplicateThread = threading.Thread(target=ManageRuplicating)
-ReplicateThread.start()
+    ReplicateThread = threading.Thread(name = 'Replication Thread',target=ManageRuplicating)
+    ReplicateThread.start()
 
-while True:
-    for i in range(0,3):
-        Current_Time = time.time()
-        if(Current_Time - LastTime[i] > 1.5 and State[i] == 'online'):
-            State[i] = 'offline'
-            print('Warning !! Data Node number %d is offline' %i)
+    while True:
+        for i in range(0,NumberOfThreads):
+            Current_Time = time.time()
+            if(Current_Time - LastTime[i] > 1.5 and State[i] == 'online'):
+                State[i] = 'offline'
+                print('Warning !! Data Node number %d is offline' %i)
+            if(Current_Time - LastTime[i] < 1.5):
+                if(State[i] == 'offline'):
+                    print('Machine number ' + str(i) + ' is reconnected')
+                State[i] = 'online'

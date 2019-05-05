@@ -10,8 +10,8 @@ RepPort = "6000"
 Ports = ['6001','6002','6003'] 
 Sockets = []
 Threads = []
-MaxNumberBytes = 10000
-MaxBytesCopying = 50000
+MaxNumberBytes = 1000000
+MaxBytesCopying = 5000000
 ServerForMasterPort = '1212'
 CopyingPort = '1111'
 
@@ -46,6 +46,7 @@ def Transfer(ID):
                                         file.close()
                                         break
                         publisher.send_string('Uploaded')
+                        print('Done..')
                         FilePath = os.path.dirname(os.path.realpath(FileName))
                         FilePath = FilePath + chr(92) + FileName                # 92 is the ASCII code of \ symbol.
                         publisher.send_string(FileName)
@@ -69,12 +70,13 @@ def Transfer(ID):
                         part = int(part)
                         file.read(part*size)
                         data = b''
-                        counter = 0
+                        counter = 0                        
                         while (size > 0):
-                                size-=1
-                                byte = file.read(1)
+                                am = min(10,size)
+                                size-=am
+                                byte = file.read(am)
                                 data+=byte
-                                counter+=1
+                                counter+=am
                                 if(counter == MaxNumberBytes):
                                         counter = 0
                                         Sockets[ID].send(data)
@@ -90,13 +92,20 @@ def Transfer(ID):
                         publisher.send_string('Downloaded')
                         publisher.send_string(Ports[ID])
 
-def StartCopying(Info,FileName):
-        CopyingSocket  = context.socket(zmq.REQ)
+def GetFileNameFromFilePath(FilePath):
+        tmp = FilePath.split(chr(92))
+        return tmp[len(tmp) - 1]
 
+def StartCopying(Info,FilePath):
+
+        CopyingSocket  = context.socket(zmq.REQ)
+        print('The File Path is' + FilePath)
+        FileName = GetFileNameFromFilePath(FilePath)
+        print('The File Name is' + FileName)
         for i in range(0,len(Info),2):          #NOTE: User will connect to more than one Data Node in case of download
                 CopyingSocket.connect ("tcp://%s:%s" %(Info[i],Info[i+1]))
         
-        NumberOfMachines = len(Info) / 2
+        NumberOfMachines = len(Info) // 2
         for i in range(0,NumberOfMachines):
                 CopyingSocket.send(b'upload')
                 CopyingSocket.recv()
@@ -106,23 +115,34 @@ def StartCopying(Info,FileName):
 
         data = b''
         n = 0
+        completed = 0
+        FileSize = os.stat(FileName).st_size
+        print(FileName)
+        print(FileSize)
         with open(FileName, "rb") as f:
-                byte = f.read(1)
-                n+=1
+                byte = f.read(10)
+                n+=10
+                completed+=10
                 data+=byte
                 while byte != b"":
-                        byte = f.read(1)
+                        byte = f.read(50)
                         data+=byte
-                        n+=1
-                        if(n == MaxBytesCopying):
+                        n+=50
+                        completed+=50
+                        per = int(completed/int(FileSize)*100)
+                        print('Sending.. [%d%%]\r'%per, end="")
+                        if(n >= MaxBytesCopying):
+                                print('In the If condition')
                                 n = 0
                                 for i in range(0,NumberOfMachines):
                                         CopyingSocket.send(data)
+                                        print('I Sent the data')
                                         respond = CopyingSocket.recv()
                                         if(respond != b'ok'):
                                                 print('Error occured, Transfer Failed.')
                                                 break
                                 data = b''
+                print('out of the file.')
                                 
         if(n > 0):
                 n = 0
@@ -143,7 +163,7 @@ def Replicating():
         Server = context.socket(zmq.REP)
         Server.bind("tcp://*:%s" % ServerForMasterPort)
         while True:
-                Info = Server.recv_string()
+                Info = Server.recv_string().split()
                 Server.send_string('')
 
                 StartCopying(Info,Server.recv_string())
