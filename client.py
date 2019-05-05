@@ -6,7 +6,7 @@ import os
 
 #Initializing Variables.
 MasterPort = '5555'
-MasterIP = 'localhost'
+MasterIP = '192.168.43.138'
 FileName = ''
 context = zmq.Context()
 DataNodeSocket = context.socket(zmq.REQ)
@@ -26,7 +26,7 @@ def connectMaster(info):
     socket.linger = 0
 
     socket.send_string(info)
-    time.sleep(0.3)
+    time.sleep(0.6)
     master_Response = "Server Down, Try again later"
     try:
         master_Response = socket.recv_string(flags=zmq.NOBLOCK)
@@ -38,9 +38,11 @@ def connectMaster(info):
 #------------------------------------------------------------------
 def connectSlave(num, info):
     
-    slave = "192.168.137.193"
-    #if(num == 2):
-    #    slave = ip2
+    slavelst = [None] * 2
+    slavelst[0] = "192.168.43.37"
+    slavelst[1] = "localhost"
+    
+    slave = slavelst[num]
     
     port = "5556"
 
@@ -50,7 +52,7 @@ def connectSlave(num, info):
     socket.linger = 0
 
     socket.send_string(info)
-    time.sleep(0.3)
+    time.sleep(0.6)
     slave_Response = "Server Down, Try again later"
     try:
         slave_Response = socket.recv_string(flags=zmq.NOBLOCK)
@@ -112,9 +114,10 @@ def client():
             print("Loading: Please wait a while\n")
 
             cnt = 0
-            slave_Response = "Servers are down, Try again later"
-            while(slave_Response == "Servers are down, Try again later" and cnt < 1000):
-                num = random.randint(1,1)
+            slave_Response = "Server Down, Try again later"
+            while(slave_Response == "Server Down, Try again later" and cnt < 10):
+                print("Trying")
+                num = random.randint(0,1)
                 slave_Response = connectSlave(num, info)
                 cnt += 1
 
@@ -189,7 +192,7 @@ def Download(FileName, NumberOfConnectedServers):
                 for b in AllData[i]:
                     file.write(b)
                     completed+=1
-                    per = int(completed/int(FileSize)*100)
+                    per = int(completed//int(FileSize)*100)
                     print('Constructing.. [%d%%]\r'%per, end="")
 
             file.close()
@@ -217,7 +220,7 @@ def Upload(FileName):
             delivered+=10
             per = int(delivered/int(FileSize)*100)
             print('Uploading.. [%d%%]\r'%per, end="")
-            if(n >= MaxNumberBytes):
+            if(n == MaxNumberBytes):
                 n = 0
                 DataNodeSocket.send(data)
                 data = b''
