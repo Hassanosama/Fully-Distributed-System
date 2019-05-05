@@ -18,7 +18,7 @@ def client_signup(q1, q2, q3):
         mydb = mysql.connector.connect(
         host="localhost",
         user="root",
-        passwd="123456789",
+        passwd="1234",
         database="os_project"
         )
         mycursor = mydb.cursor()
@@ -70,10 +70,11 @@ def inform_slave(slaveip, num, q):
                 
 
 if __name__ == '__main__':
+    print('Master Started')
     q1 = Queue()
     q2 = Queue()
     q3 = Queue()
-    slaveip1 = "192.168.137.146"
+    slaveip1 = "192.168.137.193"
     slaveip2 = ""
     slaveip3 = ""
     client_Process = Process(target=client_signup, args=(q1, q2, q3,))

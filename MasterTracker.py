@@ -12,7 +12,7 @@ RecordsFile = open('Records.txt','r')   #Load records.
 LookUpTable = {}
 VideoNames = []
 Instance = []
-MinumumNumberOfCopies = 3
+MinumumNumberOfCopies = 1
 q = queue.Queue()
 DataNodeAsSource = ['no','no','no']
 State = ['offline', 'offline', 'offline']   #State of the Data Nodes, Intilally all Machines are offline.
@@ -25,7 +25,7 @@ msg = []    #notice that number if messages = number of threads.
 Ports = ['6000','7000'] #Representitive Ports of the Data Nodes.
 TransferPorts = {'6001':'free' , '6002':'free' , '6003':'free' , '7001':'free' , '7002':'free' , '7003':'free'}
 DataNodePorts = [['6001','6002','6003'],['7001','7002','7003']]
-IP = ['localhost','localhost']  #IP's of the Data Nodes
+IP = ['192.168.137.169','192.168.137.169']  #IP's of the Data Nodes
 MasterPort = '5555'     # Master Port is the port which the users connect with.
 DataNodeAsServerPort = '1212'
 
@@ -69,13 +69,16 @@ def Connect(ID):
                 VideoNames.add(FileName)
                 '''
                 #Insert that file record to the records table.
-                mycursor.execute("INSERT INTO records (filename,datanode_id,filepath) VALUES(%s,%d,%s);",(FileName,ID,FilePath))
+                mycursor.execute("INSERT INTO records (filename,datanode_id,filepath) VALUES(%s,%s,%s);",(FileName,ID,FilePath))
+                mydb.commit()
 
                 #Update the lookup table.
-                mycursor.execute("INSERT INTO look_up (user_id,filename,datanode_id,filepath,dataNode_state) VALUES(%d,%s,%d,%s,%s);",(1,FileName,ID,FilePath,State[ID]))            
-                
+                mycursor.execute("INSERT INTO look_up (user_id,filename,datanode_id,filepath,dataNode_state) VALUES(%s,%s,%s,%s,%s);",(1,FileName,ID,FilePath,State[ID]))            
+                mydb.commit()
+
                 VideoNames.append(FileName)
-                q.put(FileName)
+                if(MinumumNumberOfCopies > 1):
+                    q.put(FileName)
 
             else:
                 PortNumber = subscribers[ID].recv_string()
@@ -127,7 +130,7 @@ def ClientsHandler():
             Server.send_string(Info)
 #----------------------------------------------------------------------------------------------
 def GetSourceNode(name):
-    mycursor.execute("SELECT datanode_id and filepath FROM reocrds WHERE filename = %s",name)
+    mycursor.execute("SELECT datanode_id , filepath FROM records WHERE filename = %s",(name))
     sources = mycursor.fetchall()
     #We can get more than one source, so we should iterate to find an available one.
     while True:
@@ -145,7 +148,7 @@ def GetSourceNode(name):
     '''
 def GetChosenNodes(name):
     Info = ''
-    mycursor.execute("SELECT datanode_id FROM reocrds WHERE filename = %s",name)
+    mycursor.execute("SELECT datanode_id FROM records WHERE filename = %s",(name))
     sources = mycursor.fetchall()
     counter = len(sources)  #Number of copies till now.
 
@@ -203,9 +206,9 @@ def StartCopying(SourceNode,ChosenNodes,FilePath):
     ToDataNode.recv_string()        #Note: the source node will not send a respond till it finished the copying porcess.
 
 def CountCopies(name):
-    mycursor.execute("SELECT COUNT(*) FROM reocrds WHERE filename = %s",name)
+    mycursor.execute("SELECT COUNT(*) FROM records WHERE filename = %s",name)
     counter = mycursor.fetchone()
-    return counter
+    return counter[0]       #Remeber, it comes from the database, so it's an array of arrays.
     '''
     counter = 0
     for i in range(0,NumberOfThreads):
@@ -218,13 +221,16 @@ def CountCopies(name):
 
 def ManageRuplicating():
     
-    for name in VideoNames:
+    print('Searching for files that should be replicated..')
+    for name in VideoNames:     # VideoNames is an array of arrays, beacuse it's a result of retrieve data from database.
         if(CountCopies(name) < MinumumNumberOfCopies):
-            q.put(name)
-
+            q.put(name[0])
+    if(q.empty()):
+        print('There is no files need to be replicated in the system for now.')
     while True:
         while q.qsize() > 0:
             VideoName = q.get()
+            print('Replicating status: A file Found: ' + VideoName)
             SourceNode = GetSourceNode(VideoName)       #SourceNode contains = [datanode_id , file path]
             ChosenNodes = GetChosenNodes(VideoName)
             StartCopying(SourceNode[0],ChosenNodes,SourceNode[1])
@@ -237,6 +243,7 @@ def ManageRuplicating():
 #Get the records from the database to iterates on the video's name.
 mycursor.execute("SELECT DISTINCT filename FROM records;")
 VideoNames = mycursor.fetchall()
+
 
 '''
 RecordsFile = open('Records.txt','a')   #Load records.

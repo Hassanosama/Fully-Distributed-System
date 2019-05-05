@@ -30,7 +30,11 @@ def Transfer(ID):
                 msg = Sockets[ID].recv()
                 Sockets[ID].send(b'')
                 if(msg == b'upload'):
+                        print('A file will be uploaded to me..')
                         FileName = Sockets[ID].recv_string()
+                        print('the file name is:')
+                        print(FileName)
+                        print('--------')
                         file = open(FileName,'wb')
                         Sockets[ID].send(b'')
                         while True:
@@ -43,6 +47,7 @@ def Transfer(ID):
                                         break
                         publisher.send_string('Uploaded')
                         FilePath = os.path.dirname(os.path.realpath(FileName))
+                        FilePath = FilePath + chr(92) + FileName                # 92 is the ASCII code of \ symbol.
                         publisher.send_string(FileName)
                         publisher.send_string(FilePath)
                         publisher.send_string(Ports[ID])
@@ -154,5 +159,6 @@ ReplicatingThread = threading.Thread(target = Replicating)
 ReplicatingThread.start()
 #Main Thread.
 while True:
+	#print('Sending an Alive message')        
 	publisher.send_string('Alive')
 	time.sleep(1)                   

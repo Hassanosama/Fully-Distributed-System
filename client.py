@@ -38,7 +38,7 @@ def connectMaster(info):
 #------------------------------------------------------------------
 def connectSlave(num, info):
     
-    slave = "192.168.137.146"
+    slave = "192.168.137.193"
     #if(num == 2):
     #    slave = ip2
     
@@ -204,6 +204,8 @@ def Upload():
     DataNodeSocket.recv()
     data = b''
     n = 0
+    delivered = 0
+    FileSize = os.stat(FileName).st_size
     with open(FileName, "rb") as f:
         byte = f.read(1)
         n+=1
@@ -212,6 +214,9 @@ def Upload():
             byte = f.read(1)
             data+=byte
             n+=1
+            delivered+=1
+            per = int(delivered/int(FileSize)*100)
+            print('Uploading.. [%d%%]\r'%per, end="")
             if(n == MaxNumberBytes):
                 n = 0
                 DataNodeSocket.send(data)
