@@ -80,6 +80,7 @@ def master_recieve():
 
 
 if __name__ == "__main__":
+    print("Slave Started")
     client_Process = Process(target=client_login, args=())
     master_Process = Process(target=master_recieve, args=())
     client_Process.start()
