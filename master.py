@@ -18,9 +18,18 @@ def client_signup(q1, q2, q3):
         mydb = mysql.connector.connect(
         host="localhost",
         user="root",
-        passwd="1234",
+        passwd="123456789",
         database="os_project"
         )
+
+        slaveip1 = "192.168.43.37"
+        slaveip2 = "192.168.43.172"
+        slaveip3 = ""
+        slave1_process = Process(target=inform_slave, args=(slaveip1, 1, q1,))
+        slave2_process = Process(target=inform_slave, args=(slaveip2, 2, q2,))
+        slave1_process.start()
+        slave2_process.start()
+
         mycursor = mydb.cursor()
         sql = "INSERT INTO users(username, passwd, email) VALUES(%s, %s, %s)"
                 
@@ -36,8 +45,10 @@ def client_signup(q1, q2, q3):
                 
             try:
                 mycursor.execute(sql, val)
-               
-                socket_client.send_string("Success: your account is ready")
+                mycursor.execute("select user_id from users where email = %s", (email,))
+                myresults = mycursor.fetchall()
+                
+                socket_client.send_string("Success: your account is ready"+str(myresults[0][0]))
                
                 mydb.commit()
 
@@ -74,12 +85,6 @@ if __name__ == '__main__':
     q1 = Queue()
     q2 = Queue()
     q3 = Queue()
-    slaveip1 = "192.168.43.37"
-    slaveip2 = "192.168.43.172"
-    slaveip3 = ""
     client_Process = Process(target=client_signup, args=(q1, q2, q3,))
-    slave1_process = Process(target=inform_slave, args=(slaveip1, 1, q1,))
-    slave2_process = Process(target=inform_slave, args=(slaveip2, 2, q2,))
     client_Process.start()
-    slave1_process.start()
-    slave2_process.start()
+  
