@@ -60,23 +60,18 @@ def Connect(ID):
             LastTime[ID] = time.time()
         else:
             PortNumber = ''
-            if msg[ID] == 'Uploaded':
+            if 'Uploaded' in msg[ID]:
                 FileName = subscribers[ID].recv_string()
                 FilePath = subscribers[ID].recv_string()
                 PortNumber = subscribers[ID].recv_string()
                 FileSize = subscribers[ID].recv_string()
-                '''
-                LookUpTable.update({FileName :[ID, FilePath,State[ID]]})
-                RecordsFile.write(FileName+'|'+str(ID))
-                Instance.append(FileName+'|'+str(ID))
-                VideoNames.add(FileName)
-                '''
+                dummy,user_id = msg[ID].split('|')
                 #Insert that file record to the records table.
                 mycursor.execute("INSERT INTO records (filename,datanode_id,filepath,filesize) VALUES(%s,%s,%s,%s);",(FileName,ID,FilePath,FileSize,))
                 mydb.commit()
 
                 #Update the lookup table.
-                mycursor.execute("INSERT INTO look_up (user_id,filename,datanode_id,filepath,dataNode_state) VALUES(%s,%s,%s,%s,%s);",(1,FileName,ID,FilePath,State[ID],))            
+                mycursor.execute("INSERT INTO look_up (user_id,filename,datanode_id,filepath,dataNode_state) VALUES(%s,%s,%s,%s,%s);",(user_id,FileName,ID,FilePath,State[ID],))            
                 mydb.commit()
 
                 VideoNames.append(FileName)

@@ -247,7 +247,7 @@ def Upload(FileName):
         respond = DataNodeSocket.recv()
         if(respond != b'ok'):
             print('Error occured, Transfer Failed.')
-    DataNodeSocket.send(b'done')
+    DataNodeSocket.send(b'done' + str.encode(str(client_id)))
     DataNodeSocket.recv()
     MasterSocket.send_string('check')
     MasterSocket.recv_string()

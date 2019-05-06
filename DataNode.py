@@ -47,15 +47,19 @@ def Transfer(ID):
                         print('--------')
                         file = open(FileName,'wb')
                         Sockets[ID].send(b'')
+                        user_id = 0
                         while True:
                                 msg = Sockets[ID].recv()
                                 Sockets[ID].send(b'ok')
-                                if(msg != b'done'):
+                                if(not (b'done' in msg)):
                                         file.write(msg)
                                 else:
                                         file.close()
+                                        msg = msg.decode()
+                                        msg = msg.replace('done','')
+                                        user_id = msg
                                         break
-                        Publish(['Uploaded'])
+                        Publish(['Uploaded' + '|' +msg])
                         print('Done..')
                         FilePath = os.path.dirname(os.path.realpath(FileName))
                         FilePath = FilePath + chr(92) + FileName                # 92 is the ASCII code of '\' symbol.
