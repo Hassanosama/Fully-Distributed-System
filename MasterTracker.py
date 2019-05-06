@@ -19,7 +19,7 @@ q = queue.Queue()
 DataNodeAsSource = ['no','no','no']
 State = ['offline', 'offline', 'offline']   #State of the Data Nodes, Intilally all Machines are offline.
 LastTime = [0, 0, 0] #Last Time Machine sent an Alive message.
-NumberOfThreads = 2
+NumberOfThreads = 1
 context = zmq.Context()
 Threads = []
 subscribers = []  #notice that number if subscriber ports = number of threads.
@@ -145,9 +145,9 @@ def ClientsHandler():
             List = GetNodes(FileName)       #Get The nodes indecies which containing that file.
             Info = ''
             while len(Info) == 0:
-                FreePort = 'none'
-                PortIP = 'none'
                 for i in range(0,NumberOfThreads):
+                    FreePort = 'none'
+                    PortIP = 'none'
                     if(List.__contains__(i)):
                         FreePort,PortIP = GetFreePort(i)
                     if(FreePort != 'none'):

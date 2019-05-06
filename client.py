@@ -140,6 +140,9 @@ def MakeConnectionWithDataNodes():
         #print(Info[i] + ' ' + Info[i+1])
         
     x = int(len(Info)/2)
+    
+    print('number of servers: '+ str(x))
+    print(Info)
     return x
 
 #------------------------------------------------------------------
@@ -189,11 +192,12 @@ def Download(FileName, NumberOfConnectedServers):
             print('File Downloaded successfully from the servers.')
             print('Please wait while constructing the file..')
             file = open(FileName,'wb')
+            print(FileName)
             for i in range(0,NumberOfConnectedServers):
                 for b in AllData[i]:
                     file.write(b)
                     completed+=1
-                    per = int(completed//int(FileSize)*100)
+                    per = int(completed/int(FileSize)*100)
                     print('Constructing.. [%d%%]\r'%per, end="")
 
             file.close()
@@ -250,7 +254,6 @@ def ViewList(List):
         label+=1
 def GetList():
     row = MasterSocket.recv_string()
-    MasterSocket.send_string('')
     List = []
     while row != 'done':
         MasterSocket.send_string('')
