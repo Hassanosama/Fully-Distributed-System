@@ -11,10 +11,11 @@ Ports = ['6001','6002','6003']
 Sockets = []
 Threads = []
 MaxNumberBytes = 1000000
-MaxBytesCopying = 5000000
+MaxBytesCopying = 1000000
+BytesPerIteration = 200
 ServerForMasterPort = '1212'
 CopyingPort = '1111'
-
+Lock = threading.Lock()
 
 context = zmq.Context() 
 publisher = context.socket(zmq.PUB)
@@ -24,6 +25,15 @@ publisher.bind('tcp://*:%s' %RepPort)
 for i in range(0,3):
         Sockets.append(context.socket(zmq.REP))
         Sockets[i].bind ("tcp://*:%s" % (Ports[i]))
+
+
+def Publish(msgs):
+        #Critical Section.
+        Lock.acquire()
+        for msg in msgs:
+                publisher.send_string(msg)
+        Lock.release()
+
 
 def Transfer(ID):
         while True:
@@ -45,13 +55,17 @@ def Transfer(ID):
                                 else:
                                         file.close()
                                         break
-                        publisher.send_string('Uploaded')
+                        Publish(['Uploaded'])
                         print('Done..')
                         FilePath = os.path.dirname(os.path.realpath(FileName))
-                        FilePath = FilePath + chr(92) + FileName                # 92 is the ASCII code of \ symbol.
-                        publisher.send_string(FileName)
-                        publisher.send_string(FilePath)
-                        publisher.send_string(Ports[ID])
+                        FilePath = FilePath + chr(92) + FileName                # 92 is the ASCII code of '\' symbol.
+                        FileSize = os.stat(FileName).st_size
+                        msgs = []
+                        msgs.append(str(FileName))
+                        msgs.append(str(FilePath))
+                        msgs.append(str(Ports[ID]))
+                        msgs.append(str(FileSize))
+                        Publish(msgs)
                 else:   #Download
                         
                         FileName = Sockets[ID].recv_string()
@@ -72,12 +86,12 @@ def Transfer(ID):
                         data = b''
                         counter = 0                        
                         while (size > 0):
-                                am = min(10,size)
+                                am = min(BytesPerIteration,size)
                                 size-=am
                                 byte = file.read(am)
                                 data+=byte
                                 counter+=am
-                                if(counter == MaxNumberBytes):
+                                if(counter >= MaxNumberBytes):
                                         counter = 0
                                         Sockets[ID].send(data)
                                         data = b''
@@ -89,8 +103,10 @@ def Transfer(ID):
                                 respond = Sockets[ID].recv()
                         file.close()
                         Sockets[ID].send(b'done')
-                        publisher.send_string('Downloaded')
-                        publisher.send_string(Ports[ID])
+                        msgs = []
+                        msgs.append('Downloaded')
+                        msgs.append(str(Ports[ID]))
+                        Publish(msgs)
 
 def GetFileNameFromFilePath(FilePath):
         tmp = FilePath.split(chr(92))
@@ -120,15 +136,15 @@ def StartCopying(Info,FilePath):
         print(FileName)
         print(FileSize)
         with open(FileName, "rb") as f:
-                byte = f.read(10)
-                n+=10
-                completed+=10
+                byte = f.read(BytesPerIteration)
+                n+=BytesPerIteration
+                completed+=BytesPerIteration
                 data+=byte
                 while byte != b"":
-                        byte = f.read(50)
+                        byte = f.read(BytesPerIteration)
                         data+=byte
-                        n+=50
-                        completed+=50
+                        n+=BytesPerIteration
+                        completed+=BytesPerIteration
                         per = int(completed/int(FileSize)*100)
                         print('Sending.. [%d%%]\r'%per, end="")
                         if(n >= MaxBytesCopying):
@@ -178,7 +194,6 @@ print('Server started')
 ReplicatingThread = threading.Thread(target = Replicating)
 ReplicatingThread.start()
 #Main Thread.
-while True:
-	#print('Sending an Alive message')        
-	publisher.send_string('Alive')
+while True:    
+	Publish(['Alive'])
 	time.sleep(1)                   

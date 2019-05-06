@@ -6,12 +6,13 @@ import os
 
 #Initializing Variables.
 MasterPort = '5555'
-MasterIP = '192.168.43.138'
+MasterIP = 'localhost'
 FileName = ''
 context = zmq.Context()
 DataNodeSocket = context.socket(zmq.REQ)
 NumberOfConnectedServers = 0
 MaxNumberBytes = 1000000
+BytesPerIteration = 200
 MasterSocket = context.socket(zmq.REQ)
 MasterSocket.connect ("tcp://%s:%s" % (MasterIP,MasterPort) )
 #----------------------------
@@ -39,7 +40,7 @@ def connectMaster(info):
 def connectSlave(num, info):
     
     slavelst = [None] * 2
-    slavelst[0] = "192.168.43.37"
+    slavelst[0] = "localhost"
     slavelst[1] = "localhost"
     
     slave = slavelst[num]
@@ -210,17 +211,17 @@ def Upload(FileName):
     delivered = 0
     FileSize = os.stat(FileName).st_size
     with open(FileName, "rb") as f:
-        byte = f.read(10)
-        n+=10
+        byte = f.read(BytesPerIteration)
+        n+=BytesPerIteration
         data+=byte
         while byte != b"":
-            byte = f.read(10)
+            byte = f.read(BytesPerIteration)
             data+=byte
-            n+=10
-            delivered+=10
+            n+=BytesPerIteration
+            delivered+=BytesPerIteration
             per = int(delivered/int(FileSize)*100)
             print('Uploading.. [%d%%]\r'%per, end="")
-            if(n == MaxNumberBytes):
+            if(n >= MaxNumberBytes):
                 n = 0
                 DataNodeSocket.send(data)
                 data = b''
@@ -242,24 +243,63 @@ def Upload(FileName):
     print('The File is successfully uploaded.')
 
 #------------------------------------------------------------------
+def ViewList(List):
+    label = 1
+    for video in List:
+        print('(%d) %s [%s] baytes' %(label,video[0],video[1]))
+        label+=1
+def GetList():
+    row = MasterSocket.recv_string()
+    MasterSocket.send_string('')
+    List = []
+    while row != 'done':
+        MasterSocket.send_string('')
+        List.append(row.split('|'))
+        row = MasterSocket.recv_string()
+    return  List
+    
+
+
 def LoggedIn():
     print('Welcome..')
     print('Choose type of operation:\n(1)Upload.\n(2)Download.')
     Operation = input()
-    print('Now Please enter the file name')
-    FileName = input()
-    print('Establishing connection, Please wait..')
     #------------------------------------------------
-    if Operation == '1':
-        MasterSocket.send_string('Upload')          #Make an Upload request.
-        NumberOfConnectedServers = MakeConnectionWithDataNodes()
-        Upload(FileName)
-    else:
-        MasterSocket.send_string('Download')          #Make a Download request.
-        MasterSocket.recv_string()
-        MasterSocket.send_string(FileName)
-        NumberOfConnectedServers = MakeConnectionWithDataNodes()
-        Download(FileName,NumberOfConnectedServers)
+    while True:
+        if Operation == '1':
+            print('Now Please enter the file name')
+            FileName = input()
+            print('Establishing connection, Please wait..')
+            MasterSocket.send_string('Upload')          #Make an Upload request.
+            NumberOfConnectedServers = MakeConnectionWithDataNodes()
+            Upload(FileName)
+            break
+        elif Operation == '2':
+            MasterSocket.send_string('Download')          #Make a Download request.
+            List = GetList()
+            ViewList(List)
+            print('Now Please enter the number of the video.')
+
+            while True:
+                try:
+                    idx = int(input())          #Index will be 1-based.
+                    idx-=1      # converting it to 0-based
+                    if(idx < len(List) and idx >= 0):
+                        break
+                    else:
+                        print('Please enter a number in range :)')
+                except:
+                    print('Please enter a valid input :)')
+
+            print('Establishing connection, Please wait..')
+            FileName = List[idx][0]
+            MasterSocket.send_string(FileName)
+            NumberOfConnectedServers = MakeConnectionWithDataNodes()
+            Download(FileName,NumberOfConnectedServers)
+            break
+        else:
+            print('Please Enter a vaild operation :)')
+
 
     os.system('pause')
     

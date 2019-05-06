@@ -14,7 +14,7 @@ print('--------------------------------------------------------------------')
 LookUpTable = {}
 VideoNames = []
 Instance = []
-MinumumNumberOfCopies = 2
+MinumumNumberOfCopies = 1
 q = queue.Queue()
 DataNodeAsSource = ['no','no','no']
 State = ['offline', 'offline', 'offline']   #State of the Data Nodes, Intilally all Machines are offline.
@@ -25,9 +25,9 @@ Threads = []
 subscribers = []  #notice that number if subscriber ports = number of threads.
 msg = []    #notice that number if messages = number of threads.
 Ports = ['6000','7000','8000'] #Representitive Ports of the Data Nodes.
-TransferPorts = {'6001':'free' , '6002':'free' , '6003':'free' , '7001':'free' , '7002':'free' , '7003':'free'}
-DataNodePorts = [['6001','6002','6003'],['7001','7002','7003']]
-IP = ['192.168.43.138','192.168.43.37','192.168.43.172']  #IP's of the Data Nodes
+TransferPorts = {'6001':'free' , '6002':'free' , '6003':'free' , '7001':'free' , '7002':'free' , '7003':'free' , '8001':'free' , '8002':'free' , '8003':'free'}
+DataNodePorts = [['6001','6002','6003'],['7001','7002','7003'],['8001','8002','8003']]
+IP = ['localhost','localhost','localhost']  #IP's of the Data Nodes
 MasterPort = '5555'     # Master Port is the port which the users connect with.
 DataNodeAsServerPort = '1212'
 
@@ -50,7 +50,6 @@ except:
 #>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
 def Connect(ID):
     msg[ID] = subscribers[ID].recv_string()
-    print('M3aya mn node ' + str(ID))
     if(msg[ID] == 'Alive'):
         print('Connected to Data Node number %s' %threading.currentThread().getName())
         LastTime[ID] = time.time()
@@ -65,6 +64,7 @@ def Connect(ID):
                 FileName = subscribers[ID].recv_string()
                 FilePath = subscribers[ID].recv_string()
                 PortNumber = subscribers[ID].recv_string()
+                FileSize = subscribers[ID].recv_string()
                 '''
                 LookUpTable.update({FileName :[ID, FilePath,State[ID]]})
                 RecordsFile.write(FileName+'|'+str(ID))
@@ -72,7 +72,7 @@ def Connect(ID):
                 VideoNames.add(FileName)
                 '''
                 #Insert that file record to the records table.
-                mycursor.execute("INSERT INTO records (filename,datanode_id,filepath) VALUES(%s,%s,%s);",(FileName,ID,FilePath,))
+                mycursor.execute("INSERT INTO records (filename,datanode_id,filepath,filesize) VALUES(%s,%s,%s,%s);",(FileName,ID,FilePath,FileSize,))
                 mydb.commit()
 
                 #Update the lookup table.
@@ -107,6 +107,18 @@ def GetNodes(name):
         ret.append(int(node[0]))
     return ret
 
+def SendList():
+    mycursor.execute("SELECT filename,filesize FROM records")
+    TMP = mycursor.fetchall()
+    for row in TMP:
+        name = str(row[0])
+        size = str(row[1])
+        Server.send_string(name + '|' + size)
+        Server.recv_string()
+    Server.send_string('done')
+
+
+
 def ClientsHandler():
     while True:
         request = Server.recv_string() #Waiting for request from any client.
@@ -127,8 +139,8 @@ def ClientsHandler():
             print('Port Found')
             Server.send_string(PortIP+' '+FreePort)
             TransferPorts[FreePort] = 'busy'
-        else:
-            Server.send_string('')
+        else:           #Download.
+            SendList()
             FileName = Server.recv_string()
             List = GetNodes(FileName)       #Get The nodes indecies which containing that file.
             Info = ''
@@ -157,13 +169,6 @@ def GetSourceNode(name):
             if State[DataNodeIdx] == 'online' and DataNodeAsSource[DataNodeIdx] == 'no': #The machine should be online and not replicating for now.
                 return src  #return the index of the datanode and the path of the file on that datanode
 
-    '''
-
-    for i in range(0,NumberOfThreads):
-        if State[i] == 'online' and DataNodeAsSource[i] == 'no' and Instance.__contains__(VideoName +'|'+ str(i)):
-            DataNodeAsSource[i] == 'yes'
-            return i
-    '''
 def GetChosenNodes(name):
     Info = ''
     mycursor.execute("SELECT datanode_id FROM records WHERE filename = %s",(name,))
@@ -188,30 +193,6 @@ def GetChosenNodes(name):
 
     return Info
 
-
-
-    '''
-    Info = ''
-    counter = 1
-    for i in range(0,NumberOfThreads):
-
-        if (counter == MinumumNumberOfCopies):
-            break
-
-        if State[i] == 'online' and (not Instance.__contains__(VideoName +'|'+ str(i))):
-            FreePort = 'none'
-            while FreePort == 'none':
-                FreePort,PortIP = GetFreePort(i)
-            TransferPorts[FreePort] = 'busy'
-            cnounter+=1
-            Info += ' '
-            Info += PortIP
-            Info += ' '
-            Info += FreePort
-            
-    return Info
-    '''
-
 def StartCopying(SourceNode,ChosenNodes,FilePath):
 
     ToDataNode = context.socket(zmq.REQ)
@@ -228,14 +209,6 @@ def CountCopies(name):
     mycursor.execute("SELECT COUNT(*) FROM records WHERE filename = %s",(name,))
     counter = mycursor.fetchone()
     return counter[0]       #Remeber, it comes from the database, so it's an array of arrays.
-    '''
-    counter = 0
-    for i in range(0,NumberOfThreads):
-        if(Instance.__contains__(name+'|'+str(i))):
-            counter+=1
-    
-    return counter
-    '''
 
 
 def ManageRuplicating():
@@ -263,19 +236,6 @@ if __name__ == '__main__':
     #Get the records from the database to iterates on the video's name.
     mycursor.execute("SELECT DISTINCT filename FROM records;")
     VideoNames = mycursor.fetchall()
-
-
-    '''
-    RecordsFile = open('Records.txt','a')   #Load records.
-    for record in RecordsFile:
-        record = str(record)
-        record = record.replace('\n','')
-        if(len(record) > 0):
-            Instance.append(record)
-            name,dummy = record.split('|')
-            VideoNames.add(name)
-    RecordsFile.close()
-    '''
 
 
     for i in range(0,NumberOfThreads):  #Running a thread for every connected data node.

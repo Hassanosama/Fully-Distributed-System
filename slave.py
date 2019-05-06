@@ -17,7 +17,7 @@ def client_login():
         mydb = mysql.connector.connect(
         host="localhost",
         user="root",
-        passwd="123456789",
+        passwd="1234",
         database="os_project"
         )
         mycursor = mydb.cursor()
@@ -55,7 +55,7 @@ def master_recieve():
         mydb = mysql.connector.connect(
                 host="localhost",
                 user="root",
-                passwd="123456789",
+                passwd="1234",
                 database="os_project"
         )
         mycursor = mydb.cursor()
