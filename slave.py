@@ -17,7 +17,7 @@ def client_login():
         mydb = mysql.connector.connect(
         host="localhost",
         user="root",
-        passwd="1234",
+        passwd="123456789",
         database="os_project"
         )
         mycursor = mydb.cursor()
@@ -37,7 +37,10 @@ def client_login():
             mycursor.fetchall()
 
             if mycursor.rowcount == 1:
-                socket_client.send_string("Login Successfully, You can procced")
+                mycursor.execute("select user_id from users where email = %s", (email,))
+                myresults = mycursor.fetchall()
+               
+                socket_client.send_string("Login Successfully, You can procced"+str(myresults[0][0]))
             else:
                 socket_client.send_string("Login Failed, password or email is invalid, Enter them again")
     except:
@@ -55,7 +58,7 @@ def master_recieve():
         mydb = mysql.connector.connect(
                 host="localhost",
                 user="root",
-                passwd="1234",
+                passwd="123456789",
                 database="os_project"
         )
         mycursor = mydb.cursor()

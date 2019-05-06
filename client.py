@@ -16,7 +16,7 @@ BytesPerIteration = 200
 MasterSocket = context.socket(zmq.REQ)
 MasterSocket.connect ("tcp://%s:%s" % (MasterIP,MasterPort) )
 #----------------------------
-
+client_id = 0
 #------------------------------------------------------------------
 def connectMaster(info):
 
@@ -90,13 +90,16 @@ def client():
             print("Loading: Please wait a while\n")
 
             master_Response = connectMaster(info)
-            print(master_Response)
-
-            if master_Response == "Success: your account is ready":
+            client_id = int(master_Response[-1])
+            
+            if "Success" in master_Response:
+                print("Successful sign up")        
                 break
-            elif master_Response == "Failed: either username or email is used before":
-                f = 1       
-            elif master_Response == "Server Down, Try again later":
+            elif "Failed" in master_Response:
+                f = 1
+                print(master_Response)       
+            elif "Server" in master_Response:
+                print(master_Response)
                 return
             
     #Login
@@ -120,15 +123,19 @@ def client():
                 print("Trying")
                 num = random.randint(0,1)
                 slave_Response = connectSlave(num, info)
+                client_id = int(slave_Response[-1])
                 cnt += 1
 
-            print(slave_Response)        
-            if slave_Response == "Login Successfully, You can procced":
+            if "Success" in slave_Response:
+                print("Successful login")
                 break
             elif slave_Response == "Login Failed, password or email is invalid, Enter them again":
+                print(slave_Response) 
                 pass
             else:
+                print(slave_Response) 
                 return
+    print(client_id)
     LoggedIn()            
 
 #------------------------------------------------------------------
